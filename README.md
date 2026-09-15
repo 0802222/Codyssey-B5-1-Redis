@@ -66,6 +66,10 @@ python3 -m unittest discover -s tests
 - TTL: `EXPIRE <key> <seconds>`, `TTL <key>`
 - 종료: `exit` / `quit`
 
+## 동작 규칙
+- `CONFIG SET maxmemory 0` : 0은 "무제한"을 의미하며, 이 경우 LRU 자동 제거가 동작하지 않는다.
+- `EXPIRE key seconds` : seconds가 0 이하이면 "즉시 만료"로 처리되어 해당 key가 즉시 삭제된다.
+
 ### 실행 예시
 ```python
 mini-redis> CONFIG SET maxmemory 30
