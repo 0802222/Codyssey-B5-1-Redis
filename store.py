@@ -37,8 +37,6 @@ def parse_int(token):
         raise MiniRedisError(ERR_NOT_INTEGER)
 
     return sign * int(digits)
-
-
 class _Entry:
     """해시맵에 저장되는 실제 값 컨테이너. LRU 노드와 만료 시각을 함께 가진다."""
 
@@ -48,9 +46,78 @@ class _Entry:
         self.expire_at = None  # None이면 TTL 없음
 
 
-    def _entry_size(key, value):
-        """used_memory 산정 공식: len(utf8(key)) + len(utf8(value))."""
-        return len(key.encode("utf-8")) + len(value.encode("utf-8"))
+def _entry_size(key, value):
+    """used_memory 산정 공식: len(utf8(key)) + len(utf8(value))."""
+    return len(key.encode("utf-8")) + len(value.encode("utf-8"))
+
+
+class MiniRedisStore:
+    """String 타입 + LRU + TTL을 지원하는 In-Memory Key-Value 저장소."""
+
+    def __init__(self):
+        self._map = HashMap()           # key -> _Entry
+        self._lru = DoublyLinkedList()  # head=가장 최근 사용, tail=가장 오래됨 (data=key)
+        self._ttl_heap = MinHeap()      # (expire_at, key) 최소 힙 (lazy deletion)
+
+        self.maxmemory = 0
+        self.used_memory = 0
+        self.evicted_keys = 0
+
+    # ------------------------------------------------------------------
+    # 만료 처리 (TTL)
+    # ------------------------------------------------------------------
+    def _delete_key(self, key):
+        """key 관련 데이터/LRU/TTL 구조를 모두 제거한다."""
+        entry = self._map.remove(key)
+        if entry is None:
+            return None
+        self._lru.remove_node(entry.lru_node)
+        self.used_memory -= _entry_size(key, entry.value)
+        return entry
+
+    def _purge_if_expired(self, key):
+        """key가 만료되었다면 즉시 삭제한다 (lazy deletion). 만료되었으면 True."""
+        entry = self._map.get(key)
+        if entry is not None and entry.expire_at is not None and entry.expire_at <= time.time():
+            self._delete_key(key)
+            return True
+        return False
+
+    def sweep_expired(self):
+        """힙의 최소값(가장 빨리 만료되는 key)부터 확인해 능동적으로 만료를 정리한다.
+
+        힙에는 과거에 설정된 TTL의 잔재(stale entry)가 남아 있을 수 있으므로,
+        pop한 항목이 현재 entry의 expire_at과 일치할 때만 실제로 삭제한다.
+        """
+        now = time.time()
+        while True:
+            top = self._ttl_heap.peek()
+            if top is None or top[0] > now:
+                break
+            expire_at, key = self._ttl_heap.pop()
+            entry = self._map.get(key)
+            if entry is not None and entry.expire_at == expire_at:
+                self._delete_key(key)
+                
+    # ------------------------------------------------------------------
+    # 메모리 관리 + LRU 제거
+    # ------------------------------------------------------------------
+    def _evict_one_lru(self):
+        key = self._lru.remove_back()
+        if key is None:
+            return False
+        entry = self._map.remove(key)
+        if entry is None:
+            return False
+        self.used_memory -= _entry_size(key, entry.value)
+        self.evicted_keys += 1
+        return True
+
+    def config_set_maxmemory(self, bytes_value):
+        if bytes_value < 0:
+            raise MiniRedisError(ERR_NOT_INTEGER)
+        self.maxmemory = bytes_value
+        return "OK"
 
     def info_memory(self):
         return (
@@ -109,6 +176,7 @@ class _Entry:
     def keys(self):
         return self._map.keys()
 
+
     # ------------------------------------------------------------------
     # TTL 명령어
     # ------------------------------------------------------------------
@@ -138,4 +206,4 @@ class _Entry:
         if remaining <= 0:
             self._delete_key(key)
             return -2
-        return int(remaining)
+        return int(remaining)                
