@@ -94,7 +94,10 @@ class MiniRedisStore:
             top = self._ttl_heap.peek()
             if top is None or top[0] > now:
                 break
-            expire_at, key = self._ttl_heap.pop()
+            expired_item = self._ttl_heap.pop()
+            if expired_item is None:
+                break
+            expire_at, key = expired_item
             entry = self._map.get(key)
             if entry is not None and entry.expire_at == expire_at:
                 self._delete_key(key)
