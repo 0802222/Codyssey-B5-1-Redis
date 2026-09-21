@@ -24,7 +24,7 @@ class HashMap:
 
     def __init__(self, initial_capacity=_INITIAL_CAPACITY):
         self._capacity = initial_capacity
-        self._buckets = [None] * self._capacity  # 각 칸: DoublyLinkedList | None
+        self._buckets: list[DoublyLinkedList | None] = [None] * self._capacity
         self._size = 0
 
     def _hash(self, key):
@@ -56,9 +56,11 @@ class HashMap:
             node.data.value = value
             return
 
-        if self._buckets[idx] is None:
-            self._buckets[idx] = DoublyLinkedList()
-        self._buckets[idx].insert_back(_Pair(key, value))
+        bucket = self._buckets[idx]
+        if bucket is None:
+            bucket = DoublyLinkedList()
+            self._buckets[idx] = bucket
+        bucket.insert_back(_Pair(key, value))
         self._size += 1
 
         if self._size / self._capacity > _LOAD_FACTOR_LIMIT:
@@ -116,7 +118,9 @@ class HashMap:
             node = bucket.head
             while node is not None:
                 idx = self._index_for(node.data.key, self._capacity)
-                if self._buckets[idx] is None:
-                    self._buckets[idx] = DoublyLinkedList()
-                self._buckets[idx].insert_back(_Pair(node.data.key, node.data.value))
+                target_bucket = self._buckets[idx]
+                if target_bucket is None:
+                    target_bucket = DoublyLinkedList()
+                    self._buckets[idx] = target_bucket
+                target_bucket.insert_back(_Pair(node.data.key, node.data.value))
                 node = node.next
