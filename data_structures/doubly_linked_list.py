@@ -34,12 +34,12 @@ class DoublyLinkedList:
         if self.head is None:
             self.head = node
             self.tail = node
-            self._size += 1
         else:
             node.next = self.head
             self.head.prev = node
             self.head = node
-            self._size += 1
+        
+        self._size += 1
         return node
 
     def insert_back(self, data):
