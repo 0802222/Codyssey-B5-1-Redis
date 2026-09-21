@@ -10,8 +10,8 @@ class Node:
 
     def __init__(self, data):
         self.data = data
-        self.prev = None
-        self.next = None
+        self.prev: Node | None = None
+        self.next: Node | None = None
 
 
 class DoublyLinkedList:
@@ -34,6 +34,7 @@ class DoublyLinkedList:
         if self.head is None:
             self.head = node
             self.tail = node
+            self._size += 1
         else:
             node.next = self.head
             self.head.prev = node

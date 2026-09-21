@@ -3,7 +3,7 @@
 from commands import CommandDispatcher
 from store import MiniRedisStore
 
-PROMPT = "mini-redis> "
+PROMPT = "mini-redis 💾 > "
 
 
 def run():
